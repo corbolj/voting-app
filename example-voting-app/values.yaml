@@ -23,8 +23,6 @@ images:
 
 replicaCount: 1
 
-
-
 worker:
   postgresql:
     postgresPassword: ENC[AES256_GCM,data:Jz5juG2a060=,iv:NN75E47cGj4hYSmHMTYTmLdsbWRRx5ozLC5VaSmZJbE=,tag:WWLbgeAmKBefWDbt3uPoEA==,type:str]
