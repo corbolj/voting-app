@@ -44,7 +44,6 @@ steps:
       - 'sed -i "/result:/c\  result: corbolj/result:${result_tag}" example-voting-app/values.yaml'
       - 'sed -i "/worker: corbolj/c\  worker: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
       - 'sed -i "/vote:/c\  vote: corbolj/vote:${vote_tag}" example-voting-app/values.yaml'
-      - cat example-voting-app/Chart.yaml
   LintHelmChart:
     stage: "pull request"
     title: Linting Helm Chart
@@ -60,8 +59,8 @@ steps:
       git: github
       working_directory: '/codefresh/volume/${{CF_REPO_NAME}}/example-voting-app'
       commit_message: Auto-Updating Chart
-      # git_user_name: git-user-name
-      # git_user_email: git-user@email.com
+      git_user_name: corbolj
+      git_user_email: corbolj@email.com
       # allow_empty: false
     add:
       - values.yaml
