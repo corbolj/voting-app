@@ -4,7 +4,7 @@ stages:
   - lint
   - "pull request"
   - tests
-  # - staging
+  - "Pre-Release"
   # - production
 steps:
   main_clone:
@@ -123,16 +123,11 @@ steps:
         command: bash -c 'IFS=" " read -a browserarray <<< "${{BROWSERS}}" && for browser in "$${browserarray[@]}"; do BROWSER=$$browser python -m pytest -vvv --alluredir=${{CF_VOLUME_PATH}}/allure-results ./tests/selenium/test_app.py; done'
         volumes:
           - '${{CF_VOLUME_NAME}}:/codefresh/volume'
-
-
-  # RunPRDVTs:
-  #   stage: "pull request"
-  #   image: 'codefresh/cli:latest'
-  #   commands:
-  #     - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=pullrequests -v SERVICES='vote result' -v RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
-  #   when:
-  #     condition:
-  #       any:
-  #         isPRopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'opened'"
-  #         isPRsynchronized: "'${{CF_PULL_REQUEST_ACTION}}' == 'synchronize'"
-  #         isPRreopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'reopened'"
+  github_release:
+    type: github-release
+    title: Adding a Pre-Release
+    stage: "Pre-Release"
+    arguments:
+      prerelease: true
+      release_name: ${{NEW_TAG}}
+      release_tag: ${{NEW_TAG}}
