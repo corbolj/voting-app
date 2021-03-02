@@ -7,7 +7,7 @@ metadata:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
-    version: {{ .Values.image.tag | quote }}
+    version: {{ .Chart.Version | quote }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -20,14 +20,14 @@ spec:
         chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
         release: {{ .Release.Name  | quote }}
         heritage: {{ .Release.Service  | quote }}
-        version: {{ .Values.image.tag | quote }}
+        version: {{ .Chart.Version | quote }}
     spec:
       imagePullSecrets:
-        - name: {{ .Values.image.pullSecret }}
+        - name: {{ .Values.images.pullSecret }}
       containers:
         - name: {{ template "fullname" . }}
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{default "Always" .Values.pullPolicy}}
+          image: {{ .Values.images.worker }}
+          imagePullPolicy: {{default "Always" .Values.images.pullPolicy}}
           env:
           - name: POSTGRES_SERVER
             value: {{ .Values.postgresql.server | default (printf "%s-postgresql" ( .Release.Name )) | quote }}

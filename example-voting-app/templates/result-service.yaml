@@ -9,7 +9,7 @@ metadata:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
-    version: {{ .Values.image.tag | quote }}
+    version: {{ .Chart.Version | quote }}
 spec:
   type: LoadBalancer
   ports:

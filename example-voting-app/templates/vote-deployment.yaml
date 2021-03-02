@@ -7,7 +7,7 @@ metadata:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
-    version: {{ .Values.image.tag | quote }}
+    version: {{ .Chart.Version | quote }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -20,21 +20,17 @@ spec:
         chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
         release: {{ .Release.Name  | quote }}
         heritage: {{ .Release.Service  | quote }}
-        version: {{ .Values.image.tag | quote }}
+        version: {{ .Chart.Version | quote }}
     spec:
       imagePullSecrets:
-        - name: {{ .Values.image.pullSecret }}
+        - name: {{ .Values.images.pullSecret }}
       containers:
-        - name: result
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{default "Always" .Values.image.pullPolicy}}
+        - name: vote
+          image: {{ .Values.images.vote }}
+          imagePullPolicy: {{default "Always" .Values.images.pullPolicy}}
           ports:
             - containerPort: 80
               name: http
           env:
-          - name: POSTGRES_SERVER
-            value: {{ .Values.postgresql.server | default (printf "%s-postgresql" ( .Release.Name )) | quote }}
-          - name: POSTGRES_USERNAME
-            value: {{ default "postgres" .Values.postgresql.postgresUser | quote }}
-          - name: POSTGRES_PASSWORD
-            value: {{ default "postgres" .Values.postgresql.postgresPassword | quote }}
+          - name: REDIS_HOST
+            value: {{ .Values.redis.host | default (printf "%s-redis" ( .Release.Name )) | quote }}
