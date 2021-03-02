@@ -3,22 +3,23 @@ stages:
   - prep
   - lint
   - "pull request"
-  - staging
-  - production
+  - tests
+  # - staging
+  # - production
 steps:
   main_clone:
     stage: prep
     title: Cloning main repository...
     type: git-clone
     repo: 'corbolj/voting-app'
-    # revision: '${{CF_REVISION}}'
     git: github
-  LintHelmChart:
-    stage: "lint"
-    title: Linting Helm Chart
-    image: codefresh/cfstep-helm:3.2.3
+  RemoveExistingTestReports:
+    title: Removing Previous Test Reports
+    image: alpine
+    stage: prep
     commands:
-      - bash -c 'cd /codefresh/volume/example-voting-app/example-voting-app && helm lint'
+      - cd '${{CF_VOLUME_PATH}}/'
+      - rm -r -f allure-results
   GetLastestTags:
     image: everpeace/curl-jq:latest
     stage: prep
@@ -38,24 +39,26 @@ steps:
       - new_incremental_version=$(($cur_incremental_version+1))
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
+  LintHelmChart:
+    stage: "pull request"
+    title: Linting Helm Chart
+    image: codefresh/cfstep-helm:3.2.3
+    commands:
+      - bash -c 'cd /codefresh/volume/voting-app/example-voting-app && helm lint'
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
     image: codefresh/cfstep-helm:3.2.3
     working_directory: ./
     environment:
-      - CHART_REF=voting-app
+      - CHART_REF=example-voting-app
       - RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}'
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
-      - NAMESPACE=${{KUBE_NAMESPACE}}
+      - NAMESPACE=pullrequests
       - DEBUG_CHART=true
-      - CMD_PS=-f helm_vars/example-voting-app/pull-requests/worker/secrets.yaml
-      - value_result_image_repository=${{CF_ACCOUNT}}/result
-      - value_result_image_tag=${{RESULT_TAG}}
-      - value_vote_image_repository=${{CF_ACCOUNT}}/vote
-      - value_vote_image_tag=${{WORKER_TAG}}
-      - value_worker_image_repository=${{CF_ACCOUNT}}/worker
-      - value_worker_image_tag=${{WORKER_TAG}}
+      - value_images_result=corbolj/result:${{RESULT_TAG}}
+      - value_images_worker=corbolj/worker:${{WORKER_TAG}}
+      - value_images_vote=corbolj/vote:${{VOTE_TAG}}
     commands:
       - /opt/bin/release_chart
     when:
@@ -64,117 +67,72 @@ steps:
           isPRopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'opened'"
           isPRsynchronized: "'${{CF_PULL_REQUEST_ACTION}}' == 'synchronize'"
           isPRreopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'reopened'"
-  RunPRDVTs:
-    stage: "pull request"
-    image: 'codefresh/cli:latest'
+  GetKubernetesServicesEndpoints:
+    stage: tests
+    title: Getting Kubernetes Services Endpoints
+    image: codefresh/cfstep-helm
     commands:
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=${{KUBE_NAMESPACE}} -v SERVICES='vote result' -v RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
-    when:
-      condition:
-        any:
-          isPRopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'opened'"
-          isPRsynchronized: "'${{CF_PULL_REQUEST_ACTION}}' == 'synchronize'"
-          isPRreopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'reopened'"
-  PushChartToHelmRepository:
-    stage: staging
-    title: Push Helm Chart to Repository
-    image: codefresh/cfstep-helm:3.2.3
-    environment:
-      - ACTION=push
-      - CHART_REF=voting-app
-      - CHART_VERSION=${{NEW_TAG}}
-    when:
-      condition:
-        any:
-          stageRelease: "'${{CF_PRERELEASE_FLAG}}' == 'true'"
-          prodRelease: "'${{CF_PRERELEASE_FLAG}}' == 'false'"
-  UpgradeStagingRelease:
-    stage: staging
-    title: Upgrading Staging Release
-    image: codefresh/cfstep-helm:3.2.3
-    working_directory: /
-    environment:
-      - CHART_REF=voting-app
-      - CHART_REPO_URL=cm://h.cfcr.io/${{CF_ACCOUNT}}/default
-      - CHART_VERSION=${{NEW_TAG}}
-      - RELEASE_NAME=staging-example-voting-app
-      - KUBE_CONTEXT=${{KUBE_CONTEXT}}
-      - NAMESPACE=staging
-      - DEBUG_CHART=true
-      - CMD_PS=-f /codefresh/volume/example-voting-app/helm_vars/example-voting-app/staging/worker/secrets.yaml
-      - value_result_image_repository=${{CF_ACCOUNT}}/result
-      - value_result_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_result_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-      - value_vote_image_repository=${{CF_ACCOUNT}}/vote
-      - value_vote_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_vote_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-      - value_worker_image_repository=${{CF_ACCOUNT}}/worker
-      - value_worker_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_worker_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-    commands:
-      - /opt/bin/release_chart
-    when:
-      condition:
-        any:
-          stageRelease: "'${{CF_PRERELEASE_FLAG}}' == 'true'"
-          prodRelease: "'${{CF_PRERELEASE_FLAG}}' == 'false'"
-  RunStagingDVTs:
-    stage: staging
-    title: Running DVTS on Staging Release
-    image: 'codefresh/cli:latest'
-    commands:
-      - echo "corbolj ${{KUBE_NAMESPACE}}"
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=staging -v SERVICES='vote result' -v RELEASE_NAME='staging-example-voting-app' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
-    when:
-      condition:
-        any:
-          stageRelease: "'${{CF_PRERELEASE_FLAG}}' == 'true'"
-          prodRelease: "'${{CF_PRERELEASE_FLAG}}' == 'false'"
-  ProductionApproval:
-    type: pending-approval
-    title: Deploy to Production?
-    description: Deploys current release to production
-    when:
-      condition:
-        all:
-          prodRelease: "'${{CF_PRERELEASE_FLAG}}' == 'false'"
-  UpgradeProductionRelease:
-    stage: production
-    title: Upgrading Production Release
-    image: codefresh/cfstep-helm:3.2.3
-    working_directory: /
-    environment:
-      - CHART_REF=voting-app
-      - CHART_REPO_URL=cm://h.cfcr.io/${{CF_ACCOUNT}}/default
-      - CHART_VERSION=${{NEW_TAG}}
-      - RELEASE_NAME=production-example-voting-app
-      - KUBE_CONTEXT=${{KUBE_CONTEXT}}
-      - NAMESPACE=production
-      - DEBUG_CHART=true
-      - CMD_PS=-f /codefresh/volume/example-voting-app/helm_vars/example-voting-app/production/worker/secrets.yaml
-      - value_result_image_repository=${{CF_ACCOUNT}}/result
-      - value_result_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_result_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-      - value_vote_image_repository=${{CF_ACCOUNT}}/vote
-      - value_vote_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_vote_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-      - value_worker_image_repository=${{CF_ACCOUNT}}/worker
-      - value_worker_image_tag=master-${{CF_SHORT_REVISION}}
-      - value_worker_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
-    commands:
-      - /opt/bin/release_chart
-    when:
-      steps:
-      - name: ProductionApproval
-        on:
-        - approved
-  RunProductionDVTs:
-    stage: production
-    title: Running DVTS on Production Release
-    image: 'codefresh/cli:latest'
-    commands:
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=production -v SERVICES='vote result' -v RELEASE_NAME='production-example-voting-app' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
-    when:
-      condition:
-        all:
-          prodRelease: "'${{CF_PRERELEASE_FLAG}}' == 'false'"
+      - kubectl config use-context ${{KUBE_CONTEXT}}
+      - bash -c 'IFS=" " read -a services <<< 'vote result' && for service in "${services[@]}"; do external_ip=""; while [ -z $external_ip ]; do echo "Waiting for end point... from kubectl get svc ${service} --namespace pullrequests --template=\"{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}\""; external_ip=$(kubectl get svc ${service} --namespace ${{NAMESPACE}} --template="{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}"); [ -z "$external_ip" ] && sleep 10; done; echo "End point ready-" && echo $external_ip; cf_export ${service^^}_ENDPOINT_IP=$external_ip; done'
+  # RunDeploymentVerificationTests:
+  #   title: Running Selenium DVTs
+  #   type: composition
+  #   composition:
+  #     version: '2'
+  #     services:
+  #       selenium_hub:
+  #         image: selenium/hub:4.0.0
+  #         ports:
+  #           - 4444
+  #         environment:
+  #           # - SE_OPTS=-debug
+  #           - GRID_MAX_SESSION=5
+  #       chrome_node:
+  #         image: selenium/node-chrome:88.0
+  #         ports:
+  #           - 5900
+  #           - 5555
+  #         command: bash -c "sleep 5 && /opt/bin/entry_point.sh"
+  #         depends_on:
+  #           - selenium_hub
+  #         environment:
+  #           - HUB_HOST=selenium_hub
+  #           - REMOTE_HOST=http://chrome_node:5555
+  #           - NODE_MAX_SESSION=5
+  #           - NODE_MAX_INSTANCES=5
+  #       firefox_node:
+  #         image: selenium/node-firefox:85.0
+  #         ports:
+  #           - 5900
+  #           - 5555
+  #         command: bash -c "sleep 5 && /opt/bin/entry_point.sh"
+  #         depends_on:
+  #           - selenium_hub
+  #         environment:
+  #           - HUB_HOST=selenium_hub
+  #           - REMOTE_HOST=http://firefox_node:5555
+  #           - NODE_MAX_SESSION=5
+  #           - NODE_MAX_INSTANCES=5
+    composition_candidates:
+      test:
+        image: ${{TEST_IMAGE}}
+        working_dir: ${{CF_VOLUME_PATH}}/${{CF_REPO_NAME}}
+        environment:
+          VOTE_ENDPOINT_IP: ${{VOTE_ENDPOINT_IP}}
+          RESULT_ENDPOINT_IP: ${{RESULT_ENDPOINT_IP}}
+        command: bash -c 'IFS=" " read -a browserarray <<< "${{BROWSERS}}" && for browser in "$${browserarray[@]}"; do BROWSER=$$browser python -m pytest -vvv --alluredir=${{CF_VOLUME_PATH}}/allure-results ./tests/selenium/test_app.py; done'
+        volumes:
+          - '${{CF_VOLUME_NAME}}:/codefresh/volume'
+
+
+  # RunPRDVTs:
+  #   stage: "pull request"
+  #   image: 'codefresh/cli:latest'
+  #   commands:
+  #     - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=pullrequests -v SERVICES='vote result' -v RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
+  #   when:
+  #     condition:
+  #       any:
+  #         isPRopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'opened'"
+  #         isPRsynchronized: "'${{CF_PULL_REQUEST_ACTION}}' == 'synchronize'"
+  #         isPRreopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'reopened'"
