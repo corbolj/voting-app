@@ -57,7 +57,7 @@ steps:
     arguments:
       repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
       git: github
-      working_directory: '/codefresh/volume/${{CF_REPO_NAME}}/example-voting-app'
+      working_directory: './example-voting-app'
       commit_message: Auto-Updating Chart
       git_user_name: corbolj
       git_user_email: corbolj@email.com
