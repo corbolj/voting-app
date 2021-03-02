@@ -39,31 +39,31 @@ steps:
       - new_incremental_version=$(($cur_incremental_version+1))
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
-      - """sed -i "/version:/c\version: ${new_tag:1}" example-voting-app/Chart.yaml"""
-      - """sed -i "/result: corbolj/result/c\result: corbolj/result:${{RESULT_TAG}}" example-voting-app/values.yaml"""
-      - """sed -i "/result: corbolj/worker/c\result: corbolj/worker:${{WORKER_TAG}}" example-voting-app/values.yaml"""
-      - """sed -i "/result: corbolj/vote/c\result: corbolj/vote:${{VOTE_TAG}}" example-voting-app/values.yaml"""
+      - chart_tag=$(echo $new_tag | cut -d "v" -f 2)
+      - 'sed -i "/version:/c\version: ${chart_tag}" example-voting-app/Chart.yaml'
+      - 'sed -i "/result:/c\  result: corbolj/result:${result_tag}" example-voting-app/values.yaml'
+      - 'sed -i "/worker: corbolj/c\  worker: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
+      - 'sed -i "/vote:/c\  vote: corbolj/vote:${vote_tag}" example-voting-app/values.yaml'
   LintHelmChart:
     stage: "pull request"
     title: Linting Helm Chart
     image: codefresh/cfstep-helm:3.2.3
     commands:
       - bash -c 'cd /codefresh/volume/voting-app/example-voting-app && helm lint'
-  commit_and_push:
-    stage: "pull request"
-    title: Commit changes and push
-    type: git-commit
-    arguments:
-      repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
-      git: github
-      working_directory: '/codefresh/volume/${{CF_REPO_NAME}}/example-voting-app'
-      commit_message: Auto-Updating Chart
-      # git_user_name: git-user-name
-      # git_user_email: git-user@email.com
-      # allow_empty: false
-    add:
-      - values.yaml
-      - Chart.yaml
+  # commit_and_push:
+  #   stage: "pull request"
+  #   title: Commit changes and push
+  #   type: git-commit
+  #   arguments:
+  #     repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+  #     git: github
+  #     working_directory: '/codefresh/volume/${{CF_REPO_NAME}}'
+  #     commit_message: Auto-Updating Chart
+  #     git_user_name: corbolj
+  #     git_user_email: corbolj@email.com
+  #     allow_empty: false
+  #   add:
+  #     - .
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
