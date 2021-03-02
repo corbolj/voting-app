@@ -33,7 +33,7 @@ steps:
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
   LintHelmChart:
-    stage: "lint"
+    stage: "pull request"
     title: Linting Helm Chart
     image: codefresh/cfstep-helm:3.2.3
     commands:
@@ -49,13 +49,9 @@ steps:
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
       - NAMESPACE=${{KUBE_NAMESPACE}}
       - DEBUG_CHART=true
-      - CMD_PS=-f helm_vars/example-voting-app/pull-requests/worker/secrets.yaml
-      - value_result_image_repository=${{CF_ACCOUNT}}/result
-      - value_result_image_tag=${{RESULT_TAG}}
-      - value_vote_image_repository=${{CF_ACCOUNT}}/vote
-      - value_vote_image_tag=${{WORKER_TAG}}
-      - value_worker_image_repository=${{CF_ACCOUNT}}/worker
-      - value_worker_image_tag=${{WORKER_TAG}}
+      - value_images_result=corbolj/result:${{RESULT_TAG}}
+      - value_images_worker=corbolj/worker:${{WORKER_TAG}}
+      - value_images_vote=corbolj/vote:${{VOTE_TAG}}
     commands:
       - /opt/bin/release_chart
     when:
