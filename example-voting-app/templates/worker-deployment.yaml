@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}
+  name: worker
   labels:
-    app: {{ template "fullname" . }}
+    app: worker
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
@@ -12,11 +12,11 @@ spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ template "fullname" . }}
+      app: worker
   template:
     metadata:
       labels:
-        app: {{ template "fullname" . }}
+        app: worker
         chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
         release: {{ .Release.Name  | quote }}
         heritage: {{ .Release.Service  | quote }}
@@ -25,7 +25,7 @@ spec:
       imagePullSecrets:
         - name: {{ .Values.images.pullSecret }}
       containers:
-        - name: {{ template "fullname" . }}
+        - name: worker
           image: {{ .Values.images.worker }}
           imagePullPolicy: {{default "Always" .Values.images.pullPolicy}}
           env:
