@@ -38,7 +38,6 @@ steps:
       - new_incremental_version=$(($cur_incremental_version+1))
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
-
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
