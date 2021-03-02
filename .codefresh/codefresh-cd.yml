@@ -42,7 +42,7 @@ steps:
       - chart_tag=$(echo $new_tag | cut -d "v" -f 2)
       - 'sed -i "/version:/c\version: ${chart_tag}" example-voting-app/Chart.yaml'
       - 'sed -i "/result:/c\  result: corbolj/result:${result_tag}" example-voting-app/values.yaml'
-      - 'sed -i "/worker:/c\  worker: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
+      - 'sed -i "/worker: corbolj/c\  worker: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
       - 'sed -i "/vote:/c\  vote: corbolj/vote:${vote_tag}" example-voting-app/values.yaml'
       - cat example-voting-app/values.yaml
   LintHelmChart:
