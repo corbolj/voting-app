@@ -13,12 +13,6 @@ steps:
     repo: 'corbolj/voting-app'
     # revision: '${{CF_REVISION}}'
     git: github
-  LintHelmChart:
-    stage: "lint"
-    title: Linting Helm Chart
-    image: codefresh/cfstep-helm:3.2.3
-    commands:
-      - bash -c 'cd /codefresh/volume/example-voting-app/example-voting-app && helm lint'
   GetLastestTags:
     image: everpeace/curl-jq:latest
     stage: prep
@@ -38,6 +32,12 @@ steps:
       - new_incremental_version=$(($cur_incremental_version+1))
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
+  LintHelmChart:
+    stage: "lint"
+    title: Linting Helm Chart
+    image: codefresh/cfstep-helm:3.2.3
+    commands:
+      - bash -c 'cd /codefresh/volume/voting-app/example-voting-app && helm lint'
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
