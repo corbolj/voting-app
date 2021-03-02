@@ -3,17 +3,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "fullname" . }}
+  name: result
   labels:
-    app: {{ template "fullname" . }}
+    app: result
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
-    version: {{ .Values.image.tag | quote }}
+    version: {{ .Chart.Version | quote }}
 spec:
   type: LoadBalancer
   ports:
     - port: 80
       targetPort: 80
   selector:
-    app: {{ template "fullname" . }}
+    app: result

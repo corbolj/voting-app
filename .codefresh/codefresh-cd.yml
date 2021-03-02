@@ -1,70 +1,63 @@
 version: '1.0'
 stages:
-  - build
+  - prep
+  - lint
   - "pull request"
   - staging
   - production
 steps:
   main_clone:
+    stage: prep
     title: Cloning main repository...
     type: git-clone
-    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
-    revision: '${{CF_REVISION}}'
+    repo: 'corbolj/voting-app'
+    # revision: '${{CF_REVISION}}'
     git: github
-  BuildingMicroServices:
-    type: parallel
-    stage: build
-    steps:
-      BuildResultImage:
-        title: Building Result Image
-        type: build
-        image_name: corbolj/result
-        working_directory: ./result/
-        dockerfile: Dockerfile
-        tag: '${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
-      BuildVoteImage:
-        title: Building Vote Image
-        type: build
-        image_name: corbolj/vote
-        working_directory: ./vote/
-        dockerfile: Dockerfile
-        tag: '${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
-      BuildWorkerImage:
-        title: Building Worker Image
-        type: build
-        image_name: corbolj/worker
-        working_directory: ./worker/
-        dockerfile: Dockerfile
-        tag: '${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
-      BuildTestImage:
-        title: Building Test Image
-        type: build
-        image_name: corbolj/tests
-        working_directory: ./tests/
-        dockerfile: Dockerfile
-        tag: '${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
-    fail_fast: true
+  LintHelmChart:
+    stage: "lint"
+    title: Linting Helm Chart
+    image: codefresh/cfstep-helm:3.2.3
+    commands:
+      - bash -c 'cd /codefresh/volume/example-voting-app/example-voting-app && helm lint'
+  GetLastestTags:
+    image: everpeace/curl-jq:latest
+    stage: prep
+    commands:
+      - vote_tag=$(curl https://api.github.com/repos/corbolj/vote/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - worker_tag=$(curl https://api.github.com/repos/corbolj/worker/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - result_tag=$(curl https://api.github.com/repos/corbolj/result/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - tests_tag=$(curl https://api.github.com/repos/corbolj/tests/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - cf_export VOTE_TAG=$vote_tag
+      - cf_export WORKER_TAG=$worker_tag
+      - cf_export RESULT_TAG=$result_tag
+      - cf_export TESTS_TAG=$tests_tag
+      - current_tag=$(curl https://api.github.com/repos/corbolj/voting-app/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - major_version=$(echo $current_tag | cut -d'.' -f1)
+      - minor_version=$(echo $current_tag | cut -d'.' -f2)
+      - cur_incremental_version=$(echo $current_tag | cut -d'.' -f3)
+      - new_incremental_version=$(($cur_incremental_version+1))
+      - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
+      - cf_export NEW_TAG=$new_tag
+
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
     image: codefresh/cfstep-helm:3.2.3
     working_directory: ./
     environment:
-      - CHART_REF=example-voting-app
+      - CHART_REF=voting-app
       - RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}'
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
       - NAMESPACE=${{KUBE_NAMESPACE}}
       - DEBUG_CHART=true
       - CMD_PS=-f helm_vars/example-voting-app/pull-requests/worker/secrets.yaml
       - value_result_image_repository=${{CF_ACCOUNT}}/result
-      - value_result_image_tag=${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}
+      - value_result_image_tag=${{RESULT_TAG}}
       - value_vote_image_repository=${{CF_ACCOUNT}}/vote
-      - value_vote_image_tag=${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}
+      - value_vote_image_tag=${{WORKER_TAG}}
       - value_worker_image_repository=${{CF_ACCOUNT}}/worker
-      - value_worker_image_tag=${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}
+      - value_worker_image_tag=${{WORKER_TAG}}
     commands:
-      # - echo -e "${{GPG_SEC}}" > mygpgkey_sec.asc
-      # - gpg --import --allow-secret-key-import mygpgkey_sec.asc
       - /opt/bin/release_chart
     when:
       condition:
@@ -76,7 +69,7 @@ steps:
     stage: "pull request"
     image: 'codefresh/cli:latest'
     commands:
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=${{KUBE_NAMESPACE}} -v SERVICES='vote result' -v RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}' -v TEST_IMAGE='corbolj/tests:${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
+      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=${{KUBE_NAMESPACE}} -v SERVICES='vote result' -v RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
     when:
       condition:
         any:
@@ -89,8 +82,8 @@ steps:
     image: codefresh/cfstep-helm:3.2.3
     environment:
       - ACTION=push
-      - CHART_REF=example-voting-app
-      - CHART_VERSION=${{CF_RELEASE_TAG}}
+      - CHART_REF=voting-app
+      - CHART_VERSION=${{NEW_TAG}}
     when:
       condition:
         any:
@@ -102,9 +95,9 @@ steps:
     image: codefresh/cfstep-helm:3.2.3
     working_directory: /
     environment:
-      - CHART_REF=example-voting-app
+      - CHART_REF=voting-app
       - CHART_REPO_URL=cm://h.cfcr.io/${{CF_ACCOUNT}}/default
-      - CHART_VERSION=${{CF_RELEASE_TAG}}
+      - CHART_VERSION=${{NEW_TAG}}
       - RELEASE_NAME=staging-example-voting-app
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
       - NAMESPACE=staging
@@ -120,8 +113,6 @@ steps:
       - value_worker_image_tag=master-${{CF_SHORT_REVISION}}
       - value_worker_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
     commands:
-      # - echo -e "${{GPG_SEC}}" > mygpgkey_sec.asc
-      # - gpg --import --allow-secret-key-import mygpgkey_sec.asc
       - /opt/bin/release_chart
     when:
       condition:
@@ -134,7 +125,7 @@ steps:
     image: 'codefresh/cli:latest'
     commands:
       - echo "corbolj ${{KUBE_NAMESPACE}}"
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=staging -v SERVICES='vote result' -v RELEASE_NAME='staging-example-voting-app' -v TEST_IMAGE='example-voting-app/tests:${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
+      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=staging -v SERVICES='vote result' -v RELEASE_NAME='staging-example-voting-app' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
     when:
       condition:
         any:
@@ -154,14 +145,13 @@ steps:
     image: codefresh/cfstep-helm:3.2.3
     working_directory: /
     environment:
-      - CHART_REF=example-voting-app
+      - CHART_REF=voting-app
       - CHART_REPO_URL=cm://h.cfcr.io/${{CF_ACCOUNT}}/default
-      - CHART_VERSION=${{CF_RELEASE_TAG}}
+      - CHART_VERSION=${{NEW_TAG}}
       - RELEASE_NAME=production-example-voting-app
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
       - NAMESPACE=production
       - DEBUG_CHART=true
-      # NEED PGP Key in metadata of CD spec
       - CMD_PS=-f /codefresh/volume/example-voting-app/helm_vars/example-voting-app/production/worker/secrets.yaml
       - value_result_image_repository=${{CF_ACCOUNT}}/result
       - value_result_image_tag=master-${{CF_SHORT_REVISION}}
@@ -173,8 +163,6 @@ steps:
       - value_worker_image_tag=master-${{CF_SHORT_REVISION}}
       - value_worker_image_pullSecret=codefresh-generated-r.cfcr.io-cfcr-${{KUBE_NAMESPACE}}
     commands:
-      # - echo -e "${{GPG_SEC}}" > mygpgkey_sec.asc
-      # - gpg --import --allow-secret-key-import mygpgkey_sec.asc
       - /opt/bin/release_chart
     when:
       steps:
@@ -186,7 +174,7 @@ steps:
     title: Running DVTS on Production Release
     image: 'codefresh/cli:latest'
     commands:
-      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=production -v SERVICES='vote result' -v RELEASE_NAME='production-example-voting-app' -v TEST_IMAGE='example-voting-app/tests:${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}'
+      - codefresh run example-voting-app/dvts -b='${{CF_BRANCH}}' -s='${{CF_REVISION}}' -v CF_REPO_OWNER=${{CF_REPO_OWNER}} -v CF_REPO_NAME=${{CF_REPO_NAME}} -v CF_REVISION=${{CF_REVISION}} -v KUBE_CONTEXT='${{KUBE_CONTEXT}}' -v NAMESPACE=production -v SERVICES='vote result' -v RELEASE_NAME='production-example-voting-app' -v TEST_IMAGE='corbolj/tests:${{TESTS_TAG}}'
     when:
       condition:
         all:

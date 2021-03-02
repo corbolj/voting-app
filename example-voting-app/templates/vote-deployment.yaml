@@ -1,33 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}
+  name: vote
   labels:
-    app: {{ template "fullname" . }}
+    app: vote
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: {{ .Release.Name  | quote }}
     heritage: {{ .Release.Service  | quote }}
-    version: {{ .Values.image.tag | quote }}
+    version: {{ .Chart.Version | quote }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ template "fullname" . }}
+      app: vote
   template:
     metadata:
       labels:
-        app: {{ template "fullname" . }}
+        app: vote
         chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
         release: {{ .Release.Name  | quote }}
         heritage: {{ .Release.Service  | quote }}
-        version: {{ .Values.image.tag | quote }}
+        version: {{ .Chart.Version | quote }}
     spec:
       imagePullSecrets:
-        - name: {{ .Values.image.pullSecret }}
+        - name: {{ .Values.images.pullSecret }}
       containers:
         - name: vote
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{default "Always" .Values.image.pullPolicy}}
+          image: {{ .Values.images.vote }}
+          imagePullPolicy: {{default "Always" .Values.images.pullPolicy}}
           ports:
             - containerPort: 80
               name: http
