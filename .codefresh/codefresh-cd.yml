@@ -40,7 +40,7 @@ steps:
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
       - chart_tag=$(echo $new_tag | cut -d "v" -f 2)
-      - 'sed -i "/version:/c\version: ${chart_tag:1}" example-voting-app/Chart.yaml'
+      - 'sed -i "/version:/c\version: ${chart_tag}" example-voting-app/Chart.yaml'
       - 'sed -i "/result: corbolj/result/c\result: corbolj/result:${{result_tag}}" example-voting-app/values.yaml'
       - 'sed -i "/result: corbolj/worker/c\result: corbolj/worker:${{worker_tag}}" example-voting-app/values.yaml'
       - 'sed -i "/result: corbolj/vote/c\result: corbolj/vote:${{vote_tag}}" example-voting-app/values.yaml'
