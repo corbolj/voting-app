@@ -11,7 +11,6 @@ steps:
     title: Cloning main repository...
     type: git-clone
     repo: 'corbolj/voting-app'
-    # revision: '${{CF_REVISION}}'
     git: github
   GetLastestTags:
     image: everpeace/curl-jq:latest
@@ -44,7 +43,7 @@ steps:
     image: codefresh/cfstep-helm:3.2.3
     working_directory: ./
     environment:
-      - CHART_REF=voting-app
+      - CHART_REF=example-voting-app
       - RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}'
       - KUBE_CONTEXT=${{KUBE_CONTEXT}}
       - NAMESPACE=pullrequests
