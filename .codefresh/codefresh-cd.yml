@@ -41,9 +41,9 @@ steps:
       - cf_export NEW_TAG=$new_tag
       - chart_tag=$(echo $new_tag | cut -d "v" -f 2)
       - 'sed -i "/version:/c\version: ${chart_tag}" example-voting-app/Chart.yaml'
-      - 'sed -i "/result: corbolj/result/c\result: corbolj/result:${{result_tag}}" example-voting-app/values.yaml'
-      - 'sed -i "/result: corbolj/worker/c\result: corbolj/worker:${{worker_tag}}" example-voting-app/values.yaml'
-      - 'sed -i "/result: corbolj/vote/c\result: corbolj/vote:${{vote_tag}}" example-voting-app/values.yaml'
+      - 'sed -i "/result: corbolj/result/c\result: corbolj/result:${result_tag}" example-voting-app/values.yaml'
+      - 'sed -i "/result: corbolj/worker/c\result: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
+      - 'sed -i "/result: corbolj/vote/c\result: corbolj/vote:${vote_tag}" example-voting-app/values.yaml'
   LintHelmChart:
     stage: "pull request"
     title: Linting Helm Chart
