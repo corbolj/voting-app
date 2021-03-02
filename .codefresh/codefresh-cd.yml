@@ -39,10 +39,10 @@ steps:
       - new_incremental_version=$(($cur_incremental_version+1))
       - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
       - cf_export NEW_TAG=$new_tag
-      - """sed -i "/version:/c\version: ${new_tag:1}" example-voting-app/Chart.yaml"""
-      - """sed -i "/result: corbolj/result/c\result: corbolj/result:${{RESULT_TAG}}" example-voting-app/values.yaml"""
-      - """sed -i "/result: corbolj/worker/c\result: corbolj/worker:${{WORKER_TAG}}" example-voting-app/values.yaml"""
-      - """sed -i "/result: corbolj/vote/c\result: corbolj/vote:${{VOTE_TAG}}" example-voting-app/values.yaml"""
+      - 'sed -i "/version:/c\version: ${new_tag:1}" example-voting-app/Chart.yaml'
+      - 'sed -i "/result: corbolj/result/c\result: corbolj/result:${{result_tag}}" example-voting-app/values.yaml'
+      - 'sed -i "/result: corbolj/worker/c\result: corbolj/worker:${{worker_tag}}" example-voting-app/values.yaml'
+      - 'sed -i "/result: corbolj/vote/c\result: corbolj/vote:${{vote_tag}}" example-voting-app/values.yaml'
   LintHelmChart:
     stage: "pull request"
     title: Linting Helm Chart
