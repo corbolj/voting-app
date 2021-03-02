@@ -50,20 +50,20 @@ steps:
     image: codefresh/cfstep-helm:3.2.3
     commands:
       - bash -c 'cd /codefresh/volume/voting-app/example-voting-app && helm lint'
-  commit_and_push:
-    stage: "pull request"
-    title: Commit changes and push
-    type: git-commit
-    arguments:
-      repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
-      git: github
-      working_directory: '/codefresh/volume/${{CF_REPO_NAME}}'
-      commit_message: Auto-Updating Chart
-      git_user_name: corbolj
-      git_user_email: corbolj@email.com
-      allow_empty: false
-    add:
-      - .
+  # commit_and_push:
+  #   stage: "pull request"
+  #   title: Commit changes and push
+  #   type: git-commit
+  #   arguments:
+  #     repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+  #     git: github
+  #     working_directory: '/codefresh/volume/${{CF_REPO_NAME}}'
+  #     commit_message: Auto-Updating Chart
+  #     git_user_name: corbolj
+  #     git_user_email: corbolj@email.com
+  #     allow_empty: false
+  #   add:
+  #     - .
   DeployPRRelease:
     stage: "pull request"
     title: Create Ephemeral Helm Release for Pull Request
