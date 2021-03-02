@@ -19,7 +19,7 @@ images:
   pullPolicy: Always
   result: corbolj/result:v0.2.0
   worker: corbolj/worker:v0.2.0
-  vote: corbolj/vote:v0.5.0
+  vote: corbolj/vote:v0.6.0
 
 replicaCount: 1
 
