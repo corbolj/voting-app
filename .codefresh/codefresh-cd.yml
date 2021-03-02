@@ -61,7 +61,7 @@ steps:
       commit_message: Auto-Updating Chart
       git_user_name: corbolj
       git_user_email: corbolj@email.com
-      # allow_empty: false
+      allow_empty: false
     add:
       - .
   DeployPRRelease:
