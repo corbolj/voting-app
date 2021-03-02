@@ -1,0 +1,131 @@
+version: '1.0'
+stages:
+  - prep
+  - lint
+  - "pull request"
+  - tests
+  - "Pre-Release"
+  # - production
+steps:
+  main_clone:
+    stage: prep
+    title: Cloning main repository...
+    type: git-clone
+    repo: 'corbolj/voting-app'
+    git: github
+  RemoveExistingTestReports:
+    title: Removing Previous Test Reports
+    image: alpine
+    stage: prep
+    commands:
+      - cd '${{CF_VOLUME_PATH}}/'
+      - rm -r -f allure-results
+  GetLastestTags:
+    image: everpeace/curl-jq:latest
+    stage: prep
+    commands:
+      - vote_tag=$(curl https://api.github.com/repos/corbolj/vote/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - worker_tag=$(curl https://api.github.com/repos/corbolj/worker/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - result_tag=$(curl https://api.github.com/repos/corbolj/result/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - cf_export VOTE_TAG=$vote_tag
+      - cf_export WORKER_TAG=$worker_tag
+      - cf_export RESULT_TAG=$result_tag
+      - current_tag=$(curl https://api.github.com/repos/corbolj/voting-app/releases | jq -S '.[0].tag_name' |  sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+      - major_version=$(echo $current_tag | cut -d'.' -f1)
+      - minor_version=$(echo $current_tag | cut -d'.' -f2)
+      - cur_incremental_version=$(echo $current_tag | cut -d'.' -f3)
+      - new_incremental_version=$(($cur_incremental_version+1))
+      - new_tag="${major_version}.${minor_version}.${new_incremental_version}"
+      - cf_export NEW_TAG=$new_tag
+  LintHelmChart:
+    stage: "pull request"
+    title: Linting Helm Chart
+    image: codefresh/cfstep-helm:3.2.3
+    commands:
+      - bash -c 'cd /codefresh/volume/voting-app/example-voting-app && helm lint'
+  DeployPRRelease:
+    stage: "pull request"
+    title: Create Ephemeral Helm Release for Pull Request
+    image: codefresh/cfstep-helm:3.2.3
+    working_directory: ./
+    environment:
+      - CHART_REF=example-voting-app
+      - RELEASE_NAME='${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_PULL_REQUEST_NUMBER}}-${{CF_REPO_NAME}}'
+      - KUBE_CONTEXT=${{KUBE_CONTEXT}}
+      - NAMESPACE=pullrequests
+      - DEBUG_CHART=true
+      - value_images_result=corbolj/result:${{RESULT_TAG}}
+      - value_images_worker=corbolj/worker:${{WORKER_TAG}}
+      - value_images_vote=corbolj/vote:${{VOTE_TAG}}
+    commands:
+      - /opt/bin/release_chart
+    when:
+      condition:
+        any:
+          isPRopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'opened'"
+          isPRsynchronized: "'${{CF_PULL_REQUEST_ACTION}}' == 'synchronize'"
+          isPRreopen: "'${{CF_PULL_REQUEST_ACTION}}' == 'reopened'"
+  GetKubernetesServicesEndpoints:
+    stage: tests
+    title: Getting Kubernetes Services Endpoints
+    image: codefresh/cfstep-helm
+    commands:
+      - kubectl config use-context ${{KUBE_CONTEXT}}
+      - bash -c 'IFS=" " read -a services <<< 'vote result' && for service in "${services[@]}"; do external_ip=""; while [ -z $external_ip ]; do echo "Waiting for end point... from kubectl get svc ${service} --namespace pullrequests --template=\"{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}\""; external_ip=$(kubectl get svc ${service} --namespace ${{NAMESPACE}} --template="{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}"); [ -z "$external_ip" ] && sleep 10; done; echo "End point ready-" && echo $external_ip; cf_export ${service^^}_ENDPOINT_IP=$external_ip; done'
+  # RunDeploymentVerificationTests:
+  #   title: Running Selenium DVTs
+  #   type: composition
+  #   composition:
+  #     version: '2'
+  #     services:
+  #       selenium_hub:
+  #         image: selenium/hub:4.0.0
+  #         ports:
+  #           - 4444
+  #         environment:
+  #           # - SE_OPTS=-debug
+  #           - GRID_MAX_SESSION=5
+  #       chrome_node:
+  #         image: selenium/node-chrome:88.0
+  #         ports:
+  #           - 5900
+  #           - 5555
+  #         command: bash -c "sleep 5 && /opt/bin/entry_point.sh"
+  #         depends_on:
+  #           - selenium_hub
+  #         environment:
+  #           - HUB_HOST=selenium_hub
+  #           - REMOTE_HOST=http://chrome_node:5555
+  #           - NODE_MAX_SESSION=5
+  #           - NODE_MAX_INSTANCES=5
+  #       firefox_node:
+  #         image: selenium/node-firefox:85.0
+  #         ports:
+  #           - 5900
+  #           - 5555
+  #         command: bash -c "sleep 5 && /opt/bin/entry_point.sh"
+  #         depends_on:
+  #           - selenium_hub
+  #         environment:
+  #           - HUB_HOST=selenium_hub
+  #           - REMOTE_HOST=http://firefox_node:5555
+  #           - NODE_MAX_SESSION=5
+  #           - NODE_MAX_INSTANCES=5
+    composition_candidates:
+      test:
+        image: ${{TEST_IMAGE}}
+        working_dir: ${{CF_VOLUME_PATH}}/${{CF_REPO_NAME}}
+        environment:
+          VOTE_ENDPOINT_IP: ${{VOTE_ENDPOINT_IP}}
+          RESULT_ENDPOINT_IP: ${{RESULT_ENDPOINT_IP}}
+        command: bash -c 'IFS=" " read -a browserarray <<< "${{BROWSERS}}" && for browser in "$${browserarray[@]}"; do BROWSER=$$browser python -m pytest -vvv --alluredir=${{CF_VOLUME_PATH}}/allure-results ./tests/selenium/test_app.py; done'
+        volumes:
+          - '${{CF_VOLUME_NAME}}:/codefresh/volume'
+  github_release:
+    type: github-release
+    title: Adding a Pre-Release
+    stage: "Pre-Release"
+    arguments:
+      prerelease: true
+      release_name: ${{NEW_TAG}}
+      release_tag: ${{NEW_TAG}}

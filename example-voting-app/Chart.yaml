@@ -5,7 +5,7 @@ keywords:
 - codefresh
 - kubernetes
 - voting-app
-version: 0.0.1
+version: 0.0.2
 icon: https://symbols.getvecta.com/stencil_77/28_codefresh-icon.3003cf4d71.png
 sources:
 - https://github.com/corbolj/voting-app
