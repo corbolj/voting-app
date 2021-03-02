@@ -44,7 +44,7 @@ steps:
       - 'sed -i "/result:/c\  result: corbolj/result:${result_tag}" example-voting-app/values.yaml'
       - 'sed -i "/worker: corbolj/c\  worker: corbolj/worker:${worker_tag}" example-voting-app/values.yaml'
       - 'sed -i "/vote:/c\  vote: corbolj/vote:${vote_tag}" example-voting-app/values.yaml'
-      - cat example-voting-app/values.yaml
+      - cat example-voting-app/Chart.yaml
   LintHelmChart:
     stage: "pull request"
     title: Linting Helm Chart
